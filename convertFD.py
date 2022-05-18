@@ -9,6 +9,7 @@ from streamlit_lottie import st_lottie
 from streamlit_lottie import st_lottie_spinner
 import io
 import xlsxwriter
+@st.experimental_memo
 def check_password():
     """Returns `True` if the user had a correct password."""
     def password_entered():
@@ -43,6 +44,7 @@ def check_password():
     else:
         # Password correct.
         return True
+
 if check_password():
     pd.set_option('display.max_rows', None)
     baseURL = "https://server.convert-control.de/"
@@ -101,7 +103,7 @@ if check_password():
         key = response["token"]
         return key
 
-    
+    @st.experimental_memo(show_spinner=False)
     def fetch_AC_Data(siteID, startDate,endDate): #Fetch AC datas of selected plant in selected dates
         url = f"{baseURL}dc_points?plant={siteID}&timestamp={startDate} 08:00:00&end={endDate} 21:00:00&devices=338"
         payload = json.dumps({
@@ -221,7 +223,8 @@ if check_password():
         
         print ( progress)  
         if not mixed.empty:
-            st.dataframe(mixed)
+            with st.spinner("Tablo Oluşturuluyor.."):
+                st.dataframe(mixed)
 
         col1, mid, col2 = st.columns([10,15,7.5])
         if not mixed.empty:
@@ -244,6 +247,7 @@ if check_password():
                                     file_name=f"{selectedPlant}.xlsx",
                                     mime="application/vnd.ms-excel"
                                     )
+
 
 
     
