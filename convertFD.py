@@ -9,7 +9,7 @@ from streamlit_lottie import st_lottie
 from streamlit_lottie import st_lottie_spinner
 import io
 import xlsxwriter
-@st.experimental_memo
+
 def check_password():
     """Returns `True` if the user had a correct password."""
     def password_entered():
@@ -247,7 +247,3 @@ if check_password():
                                     file_name=f"{selectedPlant}.xlsx",
                                     mime="application/vnd.ms-excel"
                                     )
-
-
-
-    
