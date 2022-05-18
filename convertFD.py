@@ -101,7 +101,7 @@ if check_password():
         key = response["token"]
         return key
 
-    @st.experimental_memo(show_spinner=False)
+    
     def fetch_AC_Data(siteID, startDate,endDate): #Fetch AC datas of selected plant in selected dates
         url = f"{baseURL}dc_points?plant={siteID}&timestamp={startDate} 08:00:00&end={endDate} 21:00:00&devices=338"
         payload = json.dumps({
