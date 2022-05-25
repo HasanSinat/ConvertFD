@@ -47,7 +47,7 @@ def check_password():
 
 if check_password():
     pd.set_option('display.max_rows', None)
-    baseURL = "https://server.convert-control.de/"
+    baseURL = st.secrets["baseURL"]
     convertControlPlants = [
         {"id": 37, "name": "Cactus Farm"},
         {"id": 14,"name": "PUTAS Textil" },
@@ -83,7 +83,7 @@ if check_password():
     baseURL = "https://server.convert-control.de/api/"
     frameList = list()
     buffer = io.BytesIO()
-
+    valErr = False
     def get_key(val): #get id of selected plant
         for plant in convertControlPlants:
             if plant["name"] == val:
@@ -118,12 +118,13 @@ if check_password():
         response = pd.read_json(response)
         response.fillna(0, inplace=True)
         response = response [['device', 'timestamp','index','p','u','i']]
-        response["device"] = response["device"].str[-3:]
+        response["device"] = response["device"].str.partition("phoenixinverter/")[2] #id comes after this 
         #response["device"] = response["device"].astype(int)
         response = response.set_index("timestamp")
         response=response.between_time("08:30" , "19:00")
         response=response.reset_index()
         response = response.groupby(["timestamp","device","index"]).mean()
+        #response['timestamp'] = response["timestamp"].apply(lambda x: pd.to_datetime(x))
         return  response
 
     def convert_to_int(value):
@@ -149,7 +150,23 @@ if check_password():
         csv = mixed.to_csv()
         csv = csv.encode('utf-8')
         return csv
-    
+    def fetchPlantDetails(siteID):
+        urlSD = f"{baseURL}plant/{siteID}"
+        ulrADRS=f"{baseURL}address/{siteID}"
+        payload={}
+        headers = {'Authorization': f'Bearer {key}'}
+        responseSD = requests.request("GET", urlSD, headers=headers, data=payload).json()
+        responseADRS= requests.request("GET", ulrADRS, headers=headers, data=payload).json()
+        responseADRS  = json.dumps(responseADRS)
+        responseADRS = pd.read_json(responseADRS,lines=True)
+        responseADRS = responseADRS[["city","street1","street2"]]
+        print(responseADRS)
+        responseSD  = json.dumps(responseSD)
+        responseSD = pd.read_json(responseSD, lines=True)
+        responseSD=responseSD[["label","inverterCount","firstData","wp","latestData"]]
+       
+        return responseSD,responseADRS
+
     lottie_url_hamster = "https://assets9.lottiefiles.com/packages/lf20_xktjqpi6.json"
     lottie_hamster = load_lottieurl(lottie_url_hamster)
 
@@ -181,11 +198,7 @@ if check_password():
             if st.button("Belleği Temizle"):
                 st.experimental_memo.clear()
     if submitted:
-        try:
-            key = login(user_name,password)
-        except :
-            sys.exit("API Erişimi Sağlanamadı")
-
+        key = login(user_name,password)
         tarih = pd.date_range(startDate,endDate, freq="1D").to_series() #to create a list from given dates in order to make daily api calls
         tarih = tarih.apply(lambda x: x.strftime("%Y-%m-%d"))
         tarih=tarih.to_list()
@@ -202,11 +215,18 @@ if check_password():
         with st_lottie_spinner(lottie_hamster, key="download", height=300, quality="high"):
             for i in range(len(tarih)-1):
                 startDate=tarih[i]
-                endDate=tarih[i+1]
-                try:
+                endDate=tarih[i+1] 
+                try: #if bloğu ile girilip yalnızca auth hatası alınan durumlarda tekrar giriş yapılacak
                     data = fetch_AC_Data(siteID, startDate,endDate,)
                     frameList.append(data)
                     mixed = pd.concat(frameList)       
+                except ValueError:
+                    key = login(user_name,password)
+                    data = fetch_AC_Data(siteID, startDate,endDate,)
+                    frameList.append(data)
+                    mixed = pd.concat(frameList)                    
+                    print("Key Refreshed")
+                    pass
                 except Exception as e:
                     print(e)
                     pass
@@ -240,10 +260,44 @@ if check_password():
                                     )
             with col2:
                 with st.spinner("Excel Dosyası Hazırlanıyor.."):
-                    buffer =excelCreator(selectedPlant=selectedPlant)
-                    st.download_button(
-                                    label="Download as XLSX",
-                                    data=buffer,
-                                    file_name=f"{selectedPlant}.xlsx",
-                                    mime="application/vnd.ms-excel"
-                                    )
+                    try:
+                        buffer =excelCreator(selectedPlant=selectedPlant)
+                        st.download_button(
+                                        label="Download as XLSX",
+                                        data=buffer,
+                                        file_name=f"{selectedPlant}.xlsx",
+                                        mime="application/vnd.ms-excel"
+                                        )
+                    except ValueError:
+                        valErr = True
+            if valErr:
+                st.error("Satır Sayısı Excel Tarafından Belirlenen Limitin Üstünde Olduğundan Excel Dosyası Oluşturulamıyor.")
+                        
+    if sitedetails:
+        try:
+            key = login(user_name,password)
+        except :
+            sys.exit("API Erişimi Sağlanamadı")
+        siteDetails = fetchPlantDetails(siteID)[0]
+        siteAddress = fetchPlantDetails(siteID)[1]
+        label = siteDetails["label"].str.cat()
+        inverterCount = siteDetails["inverterCount"]
+        inverterCount = pd.to_numeric(inverterCount)
+        lastData = siteDetails["latestData"].str.cat()[:16].replace("T"," ")
+        firstData = siteDetails["firstData"].str.cat()[:16].replace("T"," ")
+        city = siteAddress["city"].str.cat()
+        street_1 = siteAddress["street1"].str.cat()
+        street_2 = siteAddress["street2"].str.cat()
+        address = street_1 + street_2
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Plant Name", label)
+        with col2:
+            st.metric("City", city)
+        st.metric("Address",address)
+        st.metric("INV COUNT", inverterCount)
+        col1,col2=st.columns(2)
+        with col1:
+            st.metric("First Connection Date", firstData)
+        with  col2:
+            st.metric("Last Connection Date", lastData)
