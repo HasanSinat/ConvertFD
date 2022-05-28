@@ -166,6 +166,24 @@ if check_password():
         responseSD=responseSD[["label","inverterCount","firstData","wp","latestData"]]
        
         return responseSD,responseADRS
+    
+    def fetchInverterDetailsData(siteID):
+        url = f"{baseURL}plant/{siteID}"
+
+        payload = json.dumps({
+        "refresh_token": "6bfa9dae9f2109a94109946478378cf95bfd7549ec4cac1f8e1300597f2cbe889ba6a7ca8ca9931410ae6f703b9deca2f0876341bf121ec8c1cf7a1eb3b826e5"
+        })
+        headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {key}' }
+        response = requests.request("GET", url, headers=headers, data=payload).json()
+        print(type(response))
+        response = pd.json_normalize(response,"devices")
+        inverterDetails = response[["id","label"]]
+        #inverterDetails["lastConnection"] = datetime.datetime.fromtimestamp(inverterDetails["lastConnection"])
+        return inverterDetails
+
 
     lottie_url_hamster = "https://assets9.lottiefiles.com/packages/lf20_xktjqpi6.json"
     lottie_hamster = load_lottieurl(lottie_url_hamster)
@@ -301,3 +319,6 @@ if check_password():
             st.metric("First Connection Date", firstData)
         with  col2:
             st.metric("Last Connection Date", lastData)
+        inverterDetailsDict = fetchInverterDetailsData(siteID)
+        with st.expander("Inverter ID-Label Tablosu"):
+            st.write(inverterDetailsDict)
