@@ -100,8 +100,8 @@ if check_password():
         key = response["token"]
         return key
 
-    @st.experimental_memo(show_spinner=False)
-    def fetch_AC_Data(siteID, startDate,endDate): #Fetch AC datas of selected plant in selected dates
+    @st.experimental_memo(show_spinner=False)#Fetch AC datas of selected plant in selected dates
+    def fetch_AC_Data(siteID, startDate,endDate):
         url = f"{baseURL}dc_points?plant={siteID}&timestamp={startDate} 08:00:00&end={endDate} 21:00:00&devices=338"
         headers = {
         'Accept': 'application/json',
@@ -196,6 +196,7 @@ if check_password():
     lottie_url_hamster = "https://assets9.lottiefiles.com/packages/lf20_xktjqpi6.json"
     lottie_hamster = load_lottieurl(lottie_url_hamster)
 
+    st.title("Convert Control Data Sihirbazı 🧙")
     with st.form(key="Santral Seçim Forumu"):
         selectedPlant= st.selectbox(
                     "Santarli Seçiniz",
@@ -206,6 +207,8 @@ if check_password():
             startDate = st.date_input("Başlangıç Tarihi", max_value=datetime.datetime.now())
         with coly:
             endDate = st.date_input("Btiş Tarihi",max_value=datetime.datetime.now())
+        if endDate-startDate < datetime.timedelta(days=1):
+            startDate = startDate-datetime.timedelta(days=1)
 
         col1, mid, col2 = st.columns([10,39,10])
         with col1:
@@ -327,17 +330,30 @@ if check_password():
             st.metric("First Connection Date", firstData)
         with  col2:
             st.metric("Last Connection Date", lastData)
-        inverterDetailsDict = fetchInverterDetailsData(siteID)[0]
-        with st.expander("Inverter ID-Label Table"):
-            st.write(inverterDetailsDict)
-        responseWiring = fetchPlantDetails(siteID)[2]
-        with st.expander("Orientation Info"):
-            st.write(responseWiring)
-        with st.expander("Detailed Orientation Info"):
-            wiringData = fetchInverterDetailsData(siteID)[1]
-            st.write(wiringData)
-        with st.expander("Module Info"):
-            module = fetchInverterDetailsData(siteID)[2]
-            module = module.partition("solarmodule/")[2]
-            moduleInfo = fetchModuleData(module)
-            st.table(moduleInfo)
+        try:   
+            inverterDetailsDict = fetchInverterDetailsData(siteID)[0]
+            with st.expander("Inverter ID-Label Table"):
+                st.write(inverterDetailsDict)
+        except:
+            pass
+        try:
+            responseWiring = fetchPlantDetails(siteID)[2]
+            with st.expander("Orientation Info"):
+                st.write(responseWiring)
+        except:
+            pass
+            
+        try:
+            with st.expander("Detailed Orientation Info"):
+                wiringData = fetchInverterDetailsData(siteID)[1]
+                st.write(wiringData)
+        except:
+            pass
+        try:
+            with st.expander("Module Info"):
+                module = fetchInverterDetailsData(siteID)[2]
+                module = module.partition("solarmodule/")[2]
+                moduleInfo = fetchModuleData(module)
+                st.table(moduleInfo)
+        except:
+            pass
