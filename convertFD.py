@@ -9,7 +9,6 @@ from streamlit_lottie import st_lottie
 from streamlit_lottie import st_lottie_spinner
 import io
 import xlsxwriter
-
 def check_password():
     """Returns `True` if the user had a correct password."""
     def password_entered():
@@ -47,7 +46,6 @@ def check_password():
 
 if check_password():
     pd.set_option('display.max_rows', None)
-    baseURL = st.secrets["baseURL"]
     convertControlPlants = [
         {"id": 37, "name": "Cactus Farm"},
         {"id": 14,"name": "PUTAS Textil" },
@@ -79,7 +77,6 @@ if check_password():
     user_name = st.secrets["user_name"]
     password = st.secrets["password"]
     mixed = pd.DataFrame()
-
     baseURL = "https://server.convert-control.de/api/"
     frameList = list()
     buffer = io.BytesIO()
@@ -106,14 +103,11 @@ if check_password():
     @st.experimental_memo(show_spinner=False)
     def fetch_AC_Data(siteID, startDate,endDate): #Fetch AC datas of selected plant in selected dates
         url = f"{baseURL}dc_points?plant={siteID}&timestamp={startDate} 08:00:00&end={endDate} 21:00:00&devices=338"
-        payload = json.dumps({
-        "refresh_token": "6bfa9dae9f2109a94109946478378cf95bfd7549ec4cac1f8e1300597f2cbe889ba6a7ca8ca9931410ae6f703b9deca2f0876341bf121ec8c1cf7a1eb3b826e5"
-        })
         headers = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {key}' }
-        response = requests.request("GET", url, headers=headers, data=payload).json()
+        response = requests.request("GET", url, headers=headers, ).json()
         response = json.dumps(response)
         response = pd.read_json(response)
         response.fillna(0, inplace=True)
@@ -126,14 +120,6 @@ if check_password():
         response = response.groupby(["timestamp","device","index"]).mean()
         #response['timestamp'] = response["timestamp"].apply(lambda x: pd.to_datetime(x))
         return  response
-
-    def convert_to_int(value):
-        if value.isdigit():
-            value = int(value)
-            return value
-        else:
-            return value
-
     def load_lottieurl(url: str):
         r = requests.get(url)
         if r.status_code != 200:
@@ -150,40 +136,62 @@ if check_password():
         csv = mixed.to_csv()
         csv = csv.encode('utf-8')
         return csv
+    @st.experimental_memo(show_spinner=False)
     def fetchPlantDetails(siteID):
         urlSD = f"{baseURL}plant/{siteID}"
         ulrADRS=f"{baseURL}address/{siteID}"
-        payload={}
         headers = {'Authorization': f'Bearer {key}'}
-        responseSD = requests.request("GET", urlSD, headers=headers, data=payload).json()
-        responseADRS= requests.request("GET", ulrADRS, headers=headers, data=payload).json()
+        responseSD = requests.request("GET", urlSD, headers=headers, ).json()
+        responseADRS= requests.request("GET", ulrADRS, headers=headers,).json()
         responseADRS  = json.dumps(responseADRS)
         responseADRS = pd.read_json(responseADRS,lines=True)
         responseADRS = responseADRS[["city","street1","street2"]]
         print(responseADRS)
+        responseWiring = responseSD["wiringInformation"]
+        
         responseSD  = json.dumps(responseSD)
         responseSD = pd.read_json(responseSD, lines=True)
         responseSD=responseSD[["label","inverterCount","firstData","wp","latestData"]]
        
-        return responseSD,responseADRS
+        return responseSD,responseADRS,responseWiring
     
     def fetchInverterDetailsData(siteID):
         url = f"{baseURL}plant/{siteID}"
-
-        payload = json.dumps({
-        "refresh_token": "6bfa9dae9f2109a94109946478378cf95bfd7549ec4cac1f8e1300597f2cbe889ba6a7ca8ca9931410ae6f703b9deca2f0876341bf121ec8c1cf7a1eb3b826e5"
-        })
         headers = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {key}' }
-        response = requests.request("GET", url, headers=headers, data=payload).json()
+        response = requests.request("GET", url, headers=headers,).json()
         print(type(response))
-        response = pd.json_normalize(response,"devices")
-        inverterDetails = response[["id","label"]]
+        #wiringData =  pd.json_normalize(response["devices"],"wiring",)
+        devicesTable = pd.DataFrame()
+        deviceNo=0
+        for device in response["devices"]:
+            print(deviceNo)
+            try:
+                wiringData = pd.json_normalize(response["devices"][deviceNo]["wiring"],)  
+                wiringData = wiringData[["id","dcInputNumber","quantity","orientation","inclination","module"]]
+                devicesTable= pd.concat([devicesTable, wiringData])
+            except:
+                pass
+            deviceNo +=1 
+        module = response["devices"][0]["wiring"][0]["module"]
+        response = pd.json_normalize(response["devices"],)
+        inverterDetails = response[["id","label",]]
         #inverterDetails["lastConnection"] = datetime.datetime.fromtimestamp(inverterDetails["lastConnection"])
-        return inverterDetails
+        return inverterDetails,devicesTable,module
+    @st.experimental_memo(show_spinner=False)
+    def fetchModuleData(moduleNo):
+            url = f"{baseURL}solarmodule/{moduleNo}"
+            headers = {
+            'Authorization': f'Bearer {key}'
+            }
 
+            response = requests.request("GET", url, headers=headers, ).json()
+            response = json.dumps(response)
+            response = pd.read_json(response,lines=True)
+            response = response[["id","label","output","size","coeff","coeffScc"]]
+            return response
 
     lottie_url_hamster = "https://assets9.lottiefiles.com/packages/lf20_xktjqpi6.json"
     lottie_hamster = load_lottieurl(lottie_url_hamster)
@@ -319,6 +327,17 @@ if check_password():
             st.metric("First Connection Date", firstData)
         with  col2:
             st.metric("Last Connection Date", lastData)
-        inverterDetailsDict = fetchInverterDetailsData(siteID)
-        with st.expander("Inverter ID-Label Tablosu"):
+        inverterDetailsDict = fetchInverterDetailsData(siteID)[0]
+        with st.expander("Inverter ID-Label Table"):
             st.write(inverterDetailsDict)
+        responseWiring = fetchPlantDetails(siteID)[2]
+        with st.expander("Orientation Info"):
+            st.write(responseWiring)
+        with st.expander("Detailed Orientation Info"):
+            wiringData = fetchInverterDetailsData(siteID)[1]
+            st.write(wiringData)
+        with st.expander("Module Info"):
+            module = fetchInverterDetailsData(siteID)[2]
+            module = module.partition("solarmodule/")[2]
+            moduleInfo = fetchModuleData(module)
+            st.table(moduleInfo)
