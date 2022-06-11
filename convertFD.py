@@ -102,23 +102,22 @@ if check_password():
 
     @st.experimental_memo(show_spinner=False)#Fetch AC datas of selected plant in selected dates
     def fetch_AC_Data(siteID, startDate,endDate):
-        url = f"{baseURL}dc_points?plant={siteID}&timestamp={startDate} 08:00:00&end={endDate} 21:00:00&devices=338"
+        url = f"{baseURL}dc_ac_logs?plant={siteID}&timestamp={startDate} 08:00:00&end={endDate} 21:00:00&selected_timeframe=day&data-context=inverter"
         headers = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {key}' }
         response = requests.request("GET", url, headers=headers, ).json()
-        response = json.dumps(response)
-        response = pd.read_json(response)
-        response.fillna(0, inplace=True)
-        response = response [['device', 'timestamp','index','p','u','i']]
+        response = pd.json_normalize(response , record_path=["dcPoints"], meta=['ac1_p','ac2_p','ac3_p','ac_total_p'] ) 
+        response.fillna(0, inplace=True)  
+        response = response [['timestamp','device','index','u','i','p','ac1_p','ac2_p','ac3_p','ac_total_p']] 
         response["device"] = response["device"].str.partition("phoenixinverter/")[2] #id comes after this 
-        #response["device"] = response["device"].astype(int)
-        response = response.set_index("timestamp")
+        response["device"] = response["device"].astype(int)
+        response['timestamp'] = pd.to_datetime(response['timestamp'],unit='s')   
+        response.set_index("timestamp",inplace=True,)    
         response=response.between_time("08:30" , "19:00")
         response=response.reset_index()
-        response = response.groupby(["timestamp","device","index"]).mean()
-        #response['timestamp'] = response["timestamp"].apply(lambda x: pd.to_datetime(x))
+        response = response.groupby(["timestamp","device",'index']).mean()
         return  response
     def load_lottieurl(url: str):
         r = requests.get(url)
@@ -274,6 +273,9 @@ if check_password():
         if not mixed.empty:
             with st.spinner("Tablo Oluşturuluyor.."):
                 st.dataframe(mixed)
+        else:
+            st.error("Tablo Oluşturulamadı")
+            sys.exit()
 
         col1, mid, col2 = st.columns([10,15,7.5])
         if not mixed.empty:
