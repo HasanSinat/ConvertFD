@@ -108,9 +108,9 @@ if check_password():
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {key}' }
         response = requests.request("GET", url, headers=headers, ).json()
-        response = pd.json_normalize(response , record_path=["dcPoints"], meta=['ac1_p','ac2_p','ac3_p','ac_total_p'] ) 
+        response = pd.json_normalize(response , record_path=["dcPoints"], meta=['ac1_u','ac1_i','ac1_p','ac2_u','ac2_i','ac2_p','ac3_u','ac3_i','ac3_p','ac_total_p',] ) 
         response.fillna(0, inplace=True)  
-        response = response [['timestamp','device','index','u','i','p','ac1_p','ac2_p','ac3_p','ac_total_p']] 
+        response = response [['timestamp','device','index','u','i','p','ac1_u','ac1_i','ac1_p','ac2_u','ac2_i','ac2_p','ac3_u','ac3_i','ac3_p','ac_total_p']] 
         response["device"] = response["device"].str.partition("phoenixinverter/")[2] #id comes after this 
         response["device"] = response["device"].astype(int)
         response['timestamp'] = pd.to_datetime(response['timestamp'],unit='s')   
